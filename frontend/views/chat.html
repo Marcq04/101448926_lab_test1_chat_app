@@ -7,11 +7,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="../chat.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="container mt-5">
         <h2>Chat Room</h2>
+        <h2>Welcome, <span id="username-display"></span>!</h2>
         <button id="logout-button" type="button" class="btn btn-danger mb-3">Logout</button>
         <input type="text" id="room-name" placeholder="Room Name" class="form-control mb-2">
         <button id="join-room" class="btn btn-info">Join Room</button>
@@ -33,8 +34,16 @@
     <script>
         const socket = io('http://localhost:8080', { transports: ['websocket', 'polling'] });
 
-        let currentUser = localStorage.getItem('username');
+        const currentUser = localStorage.getItem('username');
         let currentRoom = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (currentUser) {
+                document.getElementById('username-display').innerText = currentUser;
+            } else {
+                window.location.href = '/views/login.html';
+            }
+        });
 
         $('#join-room').on('click', () => {
             currentRoom = $('#room-name').val();
@@ -63,8 +72,12 @@
         $('#send-private-message').on('click', () => {
             const to_user = $('#private-message-user').val();
             const message = $('#private-message-input').val();
+
             if (to_user && message) {
                 socket.emit('sendPrivateMessage', { from_user: currentUser, to_user, message });
+
+                $('#private-chat-window').append(`<p class="text-muted"><strong>You (to ${to_user}):</strong> ${message}</p>`);
+
                 $('#private-message-input').val('');
             }
         });
@@ -74,21 +87,46 @@
         });
 
         socket.on('receivePrivateMessage', ({ from_user, message }) => {
+            console.log(`Private message from ${from_user}: ${message}`);
+
             $('#private-chat-window').append(`<p><strong>${from_user}:</strong> ${message}</p>`);
         });
 
-        $(document).ready(() => {
-            $('#logout-button').on('click', () => {
-                localStorage.removeItem('token');
-                localStorage.removeItem('username');
-                if (socket) {
-                    socket.disconnect();
-                }
-                window.location.href = '/views/login.html';
-            });
+        document.getElementById('logout-button').addEventListener('click', () => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('username');
+
+            if (socket) {
+                socket.disconnect();
+            }
+
+            window.location.href = '../views/login.html';
         });
+
+        let typingTimer;
+        const typingDelay = 1000; // 1 second delay before stopping the indicator
+
+        $('#group-message-input').on('input', () => {
+            if (currentRoom) {
+                socket.emit('typing', { from_user: currentUser, room: currentRoom });
+
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    socket.emit('stopTyping', { from_user: currentUser, room: currentRoom });
+                }, typingDelay);
+            }
+        });
+
+        socket.on('displayTyping', (username) => {
+            if (username !== currentUser) {
+                $('#typing-indicator').text(`${username} is typing...`);
+            }
+        });
+
+        socket.on('hideTyping', () => {
+            $('#typing-indicator').text('');
+        });
+
     </script>
 </body>
 </html>
-
-

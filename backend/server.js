@@ -49,6 +49,14 @@ io.on('connection', (socket) => {
         io.to(to_user).emit('receivePrivateMessage', { from_user, message });
     });
 
+    socket.on('typing', ({ from_user, room }) => {
+        socket.to(room).emit('displayTyping', from_user);
+    });
+
+    socket.on('stopTyping', ({ from_user, room }) => {
+        socket.to(room).emit('hideTyping');
+    });
+
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
     });
